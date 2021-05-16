@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "iostream": "cpp",
+        "thread": "cpp",
+        "vector": "cpp",
+        "*.tcc": "cpp",
+        "deque": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "fstream": "cpp",
+        "ostream": "cpp",
+        "algorithm": "cpp",
+        "iosfwd": "cpp"
+    }
+}
