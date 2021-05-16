@@ -43,12 +43,13 @@ int main() {
             perror("recv");
             exit(1);
         }
-        cout << "Create new socket: " << newfd << endl;
+        cout << "Create new socket: " << newfd << " name： " << buf << endl;
+        fflush(stdout);
         thread temp(relay, newfd, buf);
         lock_guard<mutex> guard(mtx);
-        client_data.push_back({newfd, buf, move(temp), inet_ntoa(client.sin_addr)});
+        client_online.push_back({newfd, buf, move(temp), inet_ntoa(client.sin_addr), true});
     }
-    for(vector<struct data>::iterator it = client_data.begin(); it != client_data.end(); it++) {
+    for(vector<struct data>::iterator it = client_online.begin(); it != client_online.end(); it++) {
         if(it->t.joinable())
             it->t.join();
     }

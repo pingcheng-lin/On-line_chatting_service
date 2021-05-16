@@ -1,17 +1,11 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <iostream>
 #include <string>
 #include <cstring>
-#include <cstdio>
-#include <iostream>
-#include <unordered_map>
 #include <vector>
 #include <thread>
-#include <mutex>
 
 #define QLEN 32 // maximum connection queue length
 #define BUFSIZE 4096
@@ -41,12 +35,14 @@ int input(vector<string> &name, string &sentence) {
         else if(command == "bye")
             return 2;
         else if(command == "help") {
-            cout << "===\nHelp: You can 'chat' [users] \"[words]\", or 'bye'\n";
-            cout << "Waiting...\n===\n";
+            cout << "===\nHelp: You can 'chat' [users] \"[words]\", or 'bye'\n"
+                 << "Waiting...\n===\n";
+            fflush(stdout);
         }
         else {
-            cout << "===\nWrong input: You can 'chat' [users] \"[words]\", or 'bye'\n";
-            cout << "Waiting...\n===\n";
+            cout << "===\nWrong input: You can 'chat' [users] \"[words]\", or 'bye'\n"
+                 << "Waiting...\n===\n";
+            fflush(stdout);
         }
     }
 }
@@ -58,7 +54,7 @@ void my_send(int client_fd) {
         int flag = input(name, sentence);
         if(flag == 1) {
             //send flag
-            if(send(client_fd, "chat", sizeof(buf), 0) < 0) { 
+            if(send(client_fd, "chat\0", sizeof(buf), 0) < 0) { 
                 perror("send");
                 exit(1);
             }
@@ -69,7 +65,7 @@ void my_send(int client_fd) {
                     perror("send");
                     exit(1);
                 }
-            if(send(client_fd, "=terminate=", sizeof(buf), 0) < 0) { 
+            if(send(client_fd, "=terminate=\0", sizeof(buf), 0) < 0) { 
                     perror("send");
                     exit(1);
                 }
@@ -79,7 +75,7 @@ void my_send(int client_fd) {
             }
         }
         else if(flag == 2) {
-            if(send(client_fd, "bye", sizeof(buf), 0) < 0) { 
+            if(send(client_fd, "bye\0", sizeof(buf), 0) < 0) { 
                 perror("send");
                 exit(1);
             }
@@ -101,15 +97,16 @@ void my_recv(int client_fd, string my_name) {
                 perror("recv");
                 exit(1);
             }
-            if(my_name == (string)buf)
-                continue;
             string temp_name = buf;
             if(recv(client_fd, &buf, sizeof(buf), 0) < 0) { //recv user's IP address
                 perror("recv");
                 exit(1);
             }
             string addr = buf;
-            cout << "<User " + temp_name + " is on-line, IP address: " + addr + ".>\n";
+            if(my_name == (string)temp_name)
+                continue;
+            else
+                cout << "<User " + temp_name + " is on-line, IP address: " + addr + ".>\n";
             fflush(stdout);
         }
         else if(!strcmp(buf, "chat")) {
@@ -129,7 +126,7 @@ void my_recv(int client_fd, string my_name) {
             fflush(stdout);
         } 
         else if(!strcmp(buf, "bye")) {
-            if(recv(client_fd, &buf, sizeof(buf), 0) < 0) { //recv name
+            if(recv(client_fd, &buf, sizeof(buf), 0) < 0) { //recv leaver
                 perror("recv");
                 exit(1);
             }
@@ -139,6 +136,7 @@ void my_recv(int client_fd, string my_name) {
             }
             else {
                 cout << "Bye bye.\n";
+                fflush(stdout);
                 t_r.detach();
                 break;
             }

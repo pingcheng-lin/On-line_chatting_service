@@ -12,10 +12,10 @@ int main() {
          << "Waiting...\n===\n";
 
     //connect
-    char buf[BUFSIZE];
     struct sockaddr_in client;
     string command, ip_address, my_name;
     int port;
+    char buf[BUFSIZE];
     while(1) {
         cout << "Enter your input: ";
         cin >> command;
@@ -32,14 +32,16 @@ int main() {
                      << "===\n";
                 continue;
             }
-            if(send(client_fd, my_name.c_str(), sizeof(my_name.c_str()), 0) < 0) { 
+            if(send(client_fd, my_name.c_str(), sizeof(buf), 0) < 0) { 
                 perror("send");
                 exit(1);
             }
-            if(send(client_fd, "connect", sizeof(my_name.c_str()), 0) < 0) { 
+            bzero(buf,BUFSIZE);
+            if(send(client_fd, "connect\0", sizeof(buf), 0) < 0) { 
                 perror("send");
                 exit(1);
             }
+            bzero(buf,BUFSIZE);
             break;
         }
         else if(command == "bye") {
