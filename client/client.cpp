@@ -1,5 +1,6 @@
 #include "header.hpp"
 int main() {
+    //Get the file descriptor
     int client_fd;
     client_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(client_fd < 0) {
@@ -20,6 +21,7 @@ int main() {
         cout << "Enter your input: ";
         cin >> command;
         if(command == "connect") {
+            //read information a connection need
             cin >> ip_address;
             client.sin_addr.s_addr = inet_addr(ip_address.c_str()); //connect: connect to IP address
             cin >> port;
@@ -32,16 +34,15 @@ int main() {
                      << "===\n";
                 continue;
             }
-            if(send(client_fd, my_name.c_str(), sizeof(buf), 0) < 0) { 
+
+            if(send(client_fd, my_name.c_str(), sizeof(buf), 0) < 0) { //send user name
                 perror("send");
                 exit(1);
             }
-            bzero(buf,BUFSIZE);
-            if(send(client_fd, "connect\0", sizeof(buf), 0) < 0) { 
+            if(send(client_fd, "connect\0", sizeof(buf), 0) < 0) { //send what server do next
                 perror("send");
                 exit(1);
             }
-            bzero(buf,BUFSIZE);
             break;
         }
         else if(command == "bye") {
@@ -62,7 +63,7 @@ int main() {
     }
 
     cout << "Successfully connect!!!\n"
-         << "===\nYou can 'chat' [users] \"[words]\" or 'bye'\n"
+         << "===\nYou can 'chat' [users] >[words] or 'bye'\n"
          << "Waiting...\n===\n";
 
     thread t_a(my_send, client_fd);
@@ -75,7 +76,8 @@ int main() {
 		t_s.join();
 	if(t_r.joinable())
 		t_r.join();
-			
+
+	close(client_fd);		
 	return 0;
 }
 

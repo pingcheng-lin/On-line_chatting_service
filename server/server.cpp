@@ -1,14 +1,13 @@
 #include "header.hpp"
 int main() {
     //Get the file descriptor
-    int server_fd;
     server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(server_fd < 0) {
         perror("socket"); 
         exit(1);
     }
 
-    struct sockaddr_in srv; //used by bind()
+    struct sockaddr_in srv;
     srv.sin_family = AF_INET;
     srv.sin_addr.s_addr = htonl(INADDR_ANY);
     srv.sin_port = htons(1234);
@@ -27,13 +26,14 @@ int main() {
         cout << "Listening...\n";
     }
     
+    signal(SIGINT, close_fd); // signal by ctrl+c
 
     //Accept requests
-    struct sockaddr_in client; //used by accept()
-    int newfd; //returned by accept()
-    int cli_len = sizeof(client); //used by accept()
+    struct sockaddr_in client;
+    int newfd;
+    int cli_len = sizeof(client);
     char buf[BUFSIZE];
-    while(1) {
+    while(1) { //keep accept until crtl+c
         newfd = accept(server_fd, (struct sockaddr*) &client, (socklen_t*)&cli_len);
         if(newfd < 0) {
             perror("accept");
@@ -46,13 +46,9 @@ int main() {
         cout << "Create new socket: " << newfd << " name： " << buf << endl;
         fflush(stdout);
         thread temp(relay, newfd, buf);
-        lock_guard<mutex> guard(mtx);
+        lock_guard<mutex> lck(mtx);
+        //offline先尋一次同重複名子 IP避免重複
         client_online.push_back({newfd, buf, move(temp), inet_ntoa(client.sin_addr), true});
     }
-    for(vector<struct data>::iterator it = client_online.begin(); it != client_online.end(); it++) {
-        if(it->t.joinable())
-            it->t.join();
-    }
-    close(server_fd);
     return 0;
 }
