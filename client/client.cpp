@@ -17,7 +17,9 @@ int main() {
     string command, ip_address, my_name;
     int port;
     char buf[BUFSIZE];
+    bool is_backer;
     while(1) {
+        is_backer = false;
         cout << "Enter your input: ";
         cin >> command;
         if(command == "connect") {
@@ -39,6 +41,24 @@ int main() {
                 perror("send");
                 exit(1);
             }
+            if(recv(client_fd, buf, sizeof(buf), 0) < 0) { //recv login info see it is duplicate or back or normal
+                perror("recv");
+                exit(1);
+            }
+            if("duplicate" == (string)buf) {
+                cout << "Someone with same name and IP address is using your account, try again after he/she leave.\n"
+                     << "===\n";
+                exit(1);
+            }
+            else if("back" == (string)buf) {
+                cout << "Welcome back " << my_name << ".\n";
+                is_backer = true;
+            }
+            else if("normal" == (string)buf) {
+                cout << "Successfully connect!!!\n"
+                     << "===\nYou can 'chat' [users] :[words] or 'bye'\n"
+                     << "Waiting...\n===\n";
+            }
             if(send(client_fd, "connect\0", sizeof(buf), 0) < 0) { //send what server do next
                 perror("send");
                 exit(1);
@@ -50,24 +70,20 @@ int main() {
             return 0;
         }
         else if(command == "help") {
+            cout << "===\nYou need to 'connect' [an IP address] [a port] [name] first.\n"
+                 << "Or leave by 'bye'.\n"
+                 << "Waiting...\n===\n";
+        }
+        else {
             cout << "===\nInvalid Input.\n"
                  << "You need to 'connect' [an IP address] [a port] [name].\n"
                  << "Or leave by 'bye'.\n"
                  << "Waiting...\n===\n";
         }
-        else {
-            cout << "===\nYou need to 'connect' [an IP address] [a port] [name] first.\n"
-                 << "Or leave by 'bye'.\n"
-                 << "Waiting...\n===\n";
-        }
     }
 
-    cout << "Successfully connect!!!\n"
-         << "===\nYou can 'chat' [users] >[words] or 'bye'\n"
-         << "Waiting...\n===\n";
-
     thread t_a(my_send, client_fd);
-    thread t_b(my_recv, client_fd, my_name);
+    thread t_b(my_recv, client_fd, my_name, is_backer);
 
     t_s = move(t_a);
 	t_r = move(t_b);

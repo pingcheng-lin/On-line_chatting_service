@@ -6,6 +6,8 @@
 #include <cstring>
 #include <vector>
 #include <thread>
+#include <mutex>
+#include <sstream>
 
 #define QLEN 32 // maximum connection queue length
 #define BUFSIZE 4096
@@ -14,6 +16,17 @@ using namespace std;
 
 thread t_s;
 thread t_r;
+
+mutex mtx;
+
+stringstream ss;
+void output() {
+    lock_guard<mutex> lck(mtx);
+    cout << ss.str();
+    fflush(stdout);
+    ss.str("");
+    ss.clear();
+}
 
 //read input from terminal. Ex: chat, bye, help
 int input(vector<string> &name, string &sentence) {
@@ -25,12 +38,12 @@ int input(vector<string> &name, string &sentence) {
             while(1) {
                 string temp;
                 cin >> ws; //eat white
-                if(cin.peek() == '<') 
+                if(cin.peek() == ':') 
                     break;
                 cin >> temp;
                 name.push_back(temp);
             }
-            cin.ignore(1, '<');
+            cin.ignore(1, ':');
             cin >> ws;
             getline(cin, sentence);
             return 1;
@@ -40,13 +53,13 @@ int input(vector<string> &name, string &sentence) {
             return 2;
 
         else if(command == "help") {
-            cout << "===\nHelp: You can input 'chat' [users] >[words], 'bye', or 'help'.\n"
+            cout << "===\nHelp: You can input 'chat' [users] :[words], 'bye', or 'help'.\n"
                  << "Waiting...\n===\n";
             fflush(stdout);
         }
 
         else {
-            cout << "===\nWrong input: You can input 'chat' [users] >[words], 'bye', or 'help'.\n"
+            cout << "===\nWrong input: You can input 'chat' [users] :[words], 'bye', or 'help'.\n"
                  << "Waiting...\n===\n";
             fflush(stdout);
         }
@@ -97,7 +110,7 @@ void my_send(int client_fd) {
 }
 
 //to receive data from server
-void my_recv(int client_fd, string my_name) {
+void my_recv(int client_fd, string my_name, bool is_backer) {
     while(1) {
         char buf[BUFSIZE];
         if(recv(client_fd, &buf, sizeof(buf), 0) < 0) { //recv command
@@ -117,11 +130,30 @@ void my_recv(int client_fd, string my_name) {
                 exit(1);
             }
             string addr = buf;
-            if(my_name == (string)temp_name)
-                continue;
-            else
+            if(my_name != temp_name) {
                 cout << "<User " + temp_name + " is on-line, IP address: " + addr + ".>\n";
-            fflush(stdout);
+                fflush(stdout);
+                continue;
+            }
+
+            //backer's message section
+            if(recv(client_fd, &buf, sizeof(buf), 0) < 0) { //start handle history message or not
+                perror("recv");
+                exit(1);
+            }
+            
+            if(is_backer && !strcmp(buf, "=start_send_history=")) {
+                while(1) { //handle all history buffer message
+                    if(recv(client_fd, &buf, sizeof(buf), 0) < 0) { //read history message
+                        perror("recv");
+                        exit(1);
+                    }
+                    if(!strcmp(buf, "=terminate_history_message="))
+                        break;
+                    cout << buf;
+                    fflush(stdout);
+                }
+            }
         }
 
         //receive chat section

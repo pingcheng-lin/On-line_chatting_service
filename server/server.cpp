@@ -23,7 +23,8 @@ int main() {
         exit(1);
     }
     else {
-        cout << "Listening...\n";
+        ss << "Listening...\n";
+        output();
     }
     
     signal(SIGINT, close_fd); // signal by ctrl+c
@@ -33,6 +34,7 @@ int main() {
     int newfd;
     int cli_len = sizeof(client);
     char buf[BUFSIZE];
+    string my_name;
     while(1) { //keep accept until crtl+c
         newfd = accept(server_fd, (struct sockaddr*) &client, (socklen_t*)&cli_len);
         if(newfd < 0) {
@@ -43,12 +45,48 @@ int main() {
             perror("recv");
             exit(1);
         }
-        cout << "Create new socket: " << newfd << " name： " << buf << endl;
-        fflush(stdout);
-        thread temp(relay, newfd, buf);
+        my_name = buf;
+
+        ss << "Create new socket: " << newfd << " ,name： " << buf << endl;
+        output();
+
+        //prevent duplicate user
+        bool is_duplicate = false;
+        for(vector<struct data>::iterator it = client_online.begin(); it != client_online.end(); it++)
+            if(it->name == my_name && it->ip == inet_ntoa(client.sin_addr)) {
+                is_duplicate = true;
+                ss << "duplicate " << my_name << " => deny login.\n";
+                output();
+                if(send(newfd, "duplicate\0", sizeof(buf), 0) < 0) { //send user name
+                    perror("send duplicate");
+                    exit(1);
+                }
+                //close(newfd);
+                break;
+            }
+        if(is_duplicate) //there is at least one duplicate
+            continue;
+
+        //handle come back user
+        bool is_backer = false;
+        for(vector<struct offline_data>::iterator it = client_offline.begin(); it != client_offline.end(); it++)
+            if(it->name == my_name && it->ip == inet_ntoa(client.sin_addr)) {
+                is_backer = true;
+                if(send(newfd, "back\0", sizeof(buf), 0) < 0) { //send user name
+                    perror("send");
+                    exit(1);
+                }
+            }
+        if(!is_backer && send(newfd, "normal\0", sizeof(buf), 0) < 0) {
+            perror("send");
+            exit(1);
+        }
+
+        thread temp(relay, newfd, my_name, is_backer);
         lock_guard<mutex> lck(mtx);
-        //offline先尋一次同重複名子 IP避免重複
-        client_online.push_back({newfd, buf, move(temp), inet_ntoa(client.sin_addr), true});
+
+        //old or new user store data
+        client_online.push_back({newfd, my_name, move(temp), inet_ntoa(client.sin_addr)});
     }
     return 0;
 }
