@@ -47,7 +47,7 @@ int main() {
         }
         my_name = buf;
 
-        ss << "Create new socket: " << newfd << " ,name： " << buf << endl;
+        ss << "Name： " << buf << ", IP address: " << inet_ntoa(client.sin_addr) << " try to login.\n";
         output();
 
         //prevent duplicate user
@@ -55,13 +55,14 @@ int main() {
         for(vector<struct data>::iterator it = client_online.begin(); it != client_online.end(); it++)
             if(it->name == my_name && it->ip == inet_ntoa(client.sin_addr)) {
                 is_duplicate = true;
-                ss << "duplicate " << my_name << " => deny login.\n";
+                ss << "duplicate " << my_name << " => deny login.\n"
+                   << "\n===waiting===\n";
                 output();
                 if(send(newfd, "duplicate\0", sizeof(buf), 0) < 0) { //send user name
                     perror("send duplicate");
                     exit(1);
                 }
-                //close(newfd);
+                close(newfd);
                 break;
             }
         if(is_duplicate) //there is at least one duplicate

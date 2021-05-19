@@ -28,7 +28,7 @@ struct data{
 struct offline_data{
     string name;
     string ip;
-    string sender;
+    vector<string> sender;
     map<string, vector<string>> sender_message;
     map<string, vector<string>> sender_time;
 };
@@ -51,7 +51,7 @@ void close_fd(int param) {
     ss << "\nShutdown server.\n";
     output();
     close(server_fd);
-    exit(0);//cant work?
+    exit(0);
 }
 
 void relay(int fd, string my_name, bool is_backer){
@@ -67,7 +67,7 @@ void relay(int fd, string my_name, bool is_backer){
         }
         
         //connect section
-        if(!strcmp(buf, "connect")) {
+        if(!strcmp(buf, "connect")) { //send someone online to other users
             for(vector<struct data>::iterator it = client_online.begin(); it != client_online.end(); it++) {
                 if(send(it->fd, "connect\0", sizeof(buf), 0) < 0) { 
                     perror("send connect");
@@ -87,7 +87,7 @@ void relay(int fd, string my_name, bool is_backer){
                 }
             }
 
-            if(is_backer) {
+            if(is_backer) { //send history message to user who come back online
                 if(send(fd, "=start_send_history=\0", sizeof(buf), 0) < 0) { //send history message
                     perror("send");
                     exit(1);
@@ -96,18 +96,22 @@ void relay(int fd, string my_name, bool is_backer){
                 for(off_it = client_offline.begin(); off_it != client_offline.end(); off_it++)//get my iterator
                     if(off_it->name == my_name)
                         break;
-                while(!off_it->sender_message[off_it->sender].empty()) {
-                    string message = off_it->sender_message[off_it->sender].back();
-                    off_it->sender_message[off_it->sender].pop_back();
-                    string time = off_it->sender_time[off_it->sender].back();
-                    off_it->sender_time[off_it->sender].pop_back();
-                    string history_message = "<User " + off_it->sender + " has sent " + my_name + " a message \"" + message + "\" at " + time + ".>\n";
-                    ss << history_message;
-                    output();
-                    if(send(fd, history_message.c_str(), sizeof(buf), 0) < 0) { //send history message
-                        perror("send");
-                        exit(1);
+                while(!off_it->sender.empty()) { //loop all sender
+                    string current_sender = off_it->sender.back();
+                    while(!off_it->sender_message[current_sender].empty()) { //loop all message sent by sender
+                        string message = off_it->sender_message[current_sender].back();
+                        off_it->sender_message[current_sender].pop_back();
+                        string time = off_it->sender_time[current_sender].back();
+                        off_it->sender_time[current_sender].pop_back();
+                        string history_message = "<User " + current_sender + " has sent " + my_name + " a message \"" + message + "\" at " + time + ".>\n";
+                        ss << history_message;
+                        output();
+                        if(send(fd, history_message.c_str(), sizeof(buf), 0) < 0) { //send history message
+                            perror("send");
+                            exit(1);
+                        }
                     }
+                    off_it->sender.pop_back();
                 }
                 if(send(fd, "=terminate_history_message=\0", sizeof(buf), 0) < 0) { //send terminate history message
                     perror("send");
@@ -124,7 +128,7 @@ void relay(int fd, string my_name, bool is_backer){
         //chat section
         else if(!strcmp(buf, "chat")) {
             vector<string> client_to_sent;
-            while(1) {
+            while(1) { //read who receive data and what data is it
                 if(recv(fd, &buf, sizeof(buf), 0) < 0) { //read user's name
                     perror("recv");
                     exit(1);
@@ -142,16 +146,16 @@ void relay(int fd, string my_name, bool is_backer){
             output();
 
 
-            vector<struct offline_data>::iterator off_it;
+            vector<struct offline_data>::iterator off_it; //add data to offline user when someone send message to
             for(off_it = client_offline.begin(); off_it != client_offline.end(); off_it++)
                 if(find(client_to_sent.begin(), client_to_sent.end(), off_it->name) != client_to_sent.end()) { //search if target is in offline vector
-                    off_it->sender = my_name;
+                    off_it->sender.push_back(my_name);
                     off_it->sender_message[my_name].push_back(message);
                     time_t now = time(0);
                     tm *ltm = localtime(&now);
                     string temp_time = to_string(ltm->tm_hour) + ":" + to_string(ltm->tm_min) + " " + to_string(1900+ltm->tm_year) + "/" + to_string(1+ltm->tm_mon) + "/" + to_string(ltm->tm_mday);
                     off_it->sender_time[my_name].push_back(temp_time);
-                    ss << my_name << "(inactive) => " << off_it->name << endl;
+                    ss << my_name << " => " << off_it->name << "(inactive)" << endl;
                     output();
                 }
             
@@ -172,20 +176,42 @@ void relay(int fd, string my_name, bool is_backer){
                         perror("send");
                         exit(1);
                     }
-                    ss << my_name << "(active) => " << on_it->name << endl;
+                    ss << my_name << " => " << on_it->name << "(active)" << endl;
                     output();
                 }
             }
             
             //check stranger who not exists in the vector
             for(name_it = client_to_sent.begin(); name_it != client_to_sent.end(); name_it++) {
-                for(on_it = client_online.begin(); on_it != client_online.end(); on_it++) {
-                    if(*name_it == on_it->name)
+                string temp_name = *name_it;
+                for(on_it = client_online.begin(); on_it != client_online.end(); on_it++) { //check online
+                    if(temp_name == on_it->name)
                         break;
                 }
-                if(*name_it == on_it->name)
+                if(on_it != client_online.end() && temp_name == on_it->name)
                     continue;
-                if(send(fd, "chat\0", sizeof(buf), 0) < 0) { 
+                for(off_it = client_offline.begin(); off_it != client_offline.end(); off_it++) { //check offline
+                    if(temp_name == off_it->name)
+                        break;
+                }
+                if(off_it != client_offline.end() && temp_name == off_it->name) { //when stranger is actually user offline
+                    if(send(fd, "chat\0", sizeof(buf), 0) < 0) { 
+                        perror("send");
+                        exit(1);
+                    }
+                    if(send(fd, "offline\0", sizeof(buf), 0) < 0) { 
+                        perror("send");
+                        exit(1);
+                    }
+                    if(send(fd, temp_name.c_str(), sizeof(buf), 0) < 0) {  //send name
+                        perror("send");
+                        exit(1);
+                    }
+                    ss << "<User " << temp_name << " is off-line. The message will be passed when he comes back.>\n"; 
+                    output();
+                    continue;
+                }
+                if(send(fd, "chat\0", sizeof(buf), 0) < 0) { //really a stranger
                     perror("send");
                     exit(1);
                 }
@@ -193,18 +219,18 @@ void relay(int fd, string my_name, bool is_backer){
                     perror("send");
                     exit(1);
                 }
-                if(send(fd, (*name_it).c_str(), sizeof(buf), 0) < 0) {  //send name
+                if(send(fd, temp_name.c_str(), sizeof(buf), 0) < 0) {  //send name
                     perror("send");
                     exit(1);
                 }
-                ss << "<User " << (string)(*name_it) << " does not exist.>\n";
+                ss << "<User " << temp_name << " does not exist.>\n";
                 output();
             }
         }
         //bye section
         else if(!strcmp(buf, "bye")) {
             vector<struct data>::iterator current_iter;
-            vector<struct data>::iterator it;
+            vector<struct data>::iterator it; //send bye to other clients
             for(it = client_online.begin(); it != client_online.end(); it++) {
                 if(send(it->fd, "bye\0", sizeof(buf), 0) < 0) {
                     perror("send bye");
@@ -218,12 +244,12 @@ void relay(int fd, string my_name, bool is_backer){
                     current_iter = it;
             }
             mmmtx.lock();
-            if(my_name == current_iter->name) {
+            if(my_name == current_iter->name) { //move client who say bye from online to offline
                 ss << current_iter->name << " become inactive.\n"
-                   << "===waiting input===\n";
+                   << "\n===waiting input===\n";
                 output();
-                current_iter->t.detach();//why
-                client_offline.push_back({current_iter->name, current_iter->ip, "", {{}}, {{}} });
+                current_iter->t.detach();
+                client_offline.push_back({current_iter->name, current_iter->ip, {}, {{}}, {{}} });
                 client_online.erase(current_iter);
                 mmmtx.unlock();
                 break;

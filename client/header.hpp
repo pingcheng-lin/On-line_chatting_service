@@ -168,9 +168,11 @@ void my_recv(int client_fd, string my_name, bool is_backer) {
                 exit(1);
             }
             if(temp_name == "stranger")
-                cout << "<User " << (string)buf << " does not exist.>\n";
+                cout << "<User " << buf << " does not exist.>\n";
+            else if(temp_name == "offline")
+                cout << "<User " << buf << "is off-line. The message will be passed when he comes back.>\n"; 
             else
-                cout << temp_name << ": " << (string)buf << endl;
+                cout << temp_name << ": " << buf << endl;
             fflush(stdout);
         }
 
