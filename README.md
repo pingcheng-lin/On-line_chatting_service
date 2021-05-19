@@ -1,4 +1,4 @@
-# On-line chatting service
+# Online chatting service
 ## How to run
 - `make`
 - `./client`
